@@ -2,13 +2,11 @@
 import os
 import requests
 import json
-from dotenv import load_dotenv
 from datetime import datetime
 
 class OllamaClient:
-    def __init__(self):
-        load_dotenv()
-        self.server_address = os.getenv("OLLAMA_SERVER_ADDRESS")
+    def __init__(self, config: dict):
+        self.server_address = config.get("OLLAMA_SERVER_ADDRESS")
         if not self.server_address:
             raise ValueError("OLLAMA_SERVER_ADDRESS not found in .env file")
 

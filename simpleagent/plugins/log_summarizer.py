@@ -20,7 +20,7 @@ def run(config: dict):
     full_prompt = f"{base_prompt}\n\n---LOGS---\n{log_content}"
     
     print("Summarizing logs...")
-    ollama = OllamaClient()
+    ollama = OllamaClient(config)
     summary = ollama.generate(model=model, prompt=full_prompt)
     
     print("\n--- Log Summary ---")

@@ -1,13 +1,12 @@
 # plugins/daily_motivation.py
-import os
 import json
 from pathlib import Path
 from modules.ollama_client import OllamaClient
 from modules.notifier import Notifier
 
 # Define constants for history management
-APP_ROOT = Path(__file__).resolve().parents[1] # Get the project root (simpleagent/)
-HISTORY_FILE = APP_ROOT / ".motivation_history.json"
+# Store user-writable history in the user's home directory
+HISTORY_FILE = Path.home() / ".simpleagent_motivation_history.json"
 HISTORY_LENGTH = 20 # Keep the last 20 messages
 
 def load_history():
@@ -46,7 +45,7 @@ def run(config: dict):
         full_prompt = base_prompt
 
     print("Generating motivational message...")
-    ollama = OllamaClient()
+    ollama = OllamaClient(config)
     message = ollama.generate(model=model, prompt=full_prompt, system=system_prompt)
     
     print(f"Generated Message: {message}")
@@ -55,9 +54,5 @@ def run(config: dict):
     if message and "Error" not in message:
         save_history(recent_messages, message)
 
-    # Get phone numbers from environment variable, split into a list
-    phone_numbers_str = os.getenv("TARGET_PHONE_NUMBERS", "")
-    phone_numbers_list = [num.strip() for num in phone_numbers_str.split(',') if num.strip()]
-
-    notifier = Notifier(config.get('notification_preference'))
-    notifier.send(message, target_phone_numbers=phone_numbers_list)
+    notifier = Notifier(config)
+    notifier.send(message)

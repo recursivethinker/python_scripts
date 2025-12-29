@@ -5,3 +5,9 @@ __pycache__/
 .venv/
 venv/
 .motivation_history.json
+.simpleagent_motivation_history.json
+
+# PyInstaller
+build/
+dist/
+*.spec

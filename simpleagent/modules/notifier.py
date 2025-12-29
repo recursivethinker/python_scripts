@@ -3,17 +3,17 @@ import os
 import smtplib
 import requests
 from email.message import EmailMessage
-from dotenv import load_dotenv
 from typing import List
 
 class Notifier:
-    def __init__(self, preferences: List[str]):
-        load_dotenv()
+    def __init__(self, config: dict):
+        preferences = config.get('notification_preference', [])
         # Ensure preferences is always a list for consistent processing
         if isinstance(preferences, str):
             self.preferences = [preferences]
         else:
-            self.preferences = preferences if preferences else []
+            self.preferences = preferences
+        self.config = config
 
     def send(self, message: str, **kwargs):
         sent_at_least_once = False
@@ -29,7 +29,7 @@ class Notifier:
             print(message)
 
     def _send_ntfy(self, message: str):
-        ntfy_server = os.getenv("NTFY_SERVER")
+        ntfy_server = self.config.get("NTFY_SERVER")
         if not ntfy_server:
             print("Error: NTFY_SERVER not configured in .env for ntfy notification.")
             return
@@ -40,15 +40,16 @@ class Notifier:
             print(f"Error sending ntfy notification: {e}")
 
     def _send_email(self, message: str, **kwargs):
-        target_phone_numbers = kwargs.get('target_phone_numbers')
+        numbers_str = self.config.get('TARGET_PHONE_NUMBERS', '')
+        target_phone_numbers = [num.strip() for num in numbers_str.split(',') if num.strip()]
         if not target_phone_numbers:
             print("Error: Target phone numbers not provided for email notification.")
             return
 
-        email_host = os.getenv("EMAIL_HOST")
-        email_port = int(os.getenv("EMAIL_PORT", 587))
-        email_user = os.getenv("EMAIL_USER")
-        email_password = os.getenv("EMAIL_PASSWORD")
+        email_host = self.config.get("EMAIL_HOST")
+        email_port = int(self.config.get("EMAIL_PORT", 587))
+        email_user = self.config.get("EMAIL_USER")
+        email_password = self.config.get("EMAIL_PASSWORD")
 
         if not all([email_host, email_user, email_password]):
             print("Error: Email credentials not fully configured in .env")
