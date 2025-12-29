@@ -4,25 +4,34 @@ import smtplib
 import requests
 from email.message import EmailMessage
 from dotenv import load_dotenv
+from typing import List
 
 class Notifier:
-    def __init__(self, preference: str):
+    def __init__(self, preferences: List[str]):
         load_dotenv()
-        self.preference = preference
+        # Ensure preferences is always a list for consistent processing
+        if isinstance(preferences, str):
+            self.preferences = [preferences]
+        else:
+            self.preferences = preferences if preferences else []
 
     def send(self, message: str, **kwargs):
-        if self.preference == 'ntfy':
+        sent_at_least_once = False
+        if 'ntfy' in self.preferences:
             self._send_ntfy(message)
-        elif self.preference == 'email':
+            sent_at_least_once = True
+        if 'email' in self.preferences:
             self._send_email(message, **kwargs)
-        else:
-            print("Notification preference not set or invalid. Printing to console:")
+            sent_at_least_once = True
+
+        if not sent_at_least_once:
+            print("No valid notification preference configured. Printing to console:")
             print(message)
 
     def _send_ntfy(self, message: str):
         ntfy_server = os.getenv("NTFY_SERVER")
         if not ntfy_server:
-            print("Error: NTFY_SERVER not configured in .env")
+            print("Error: NTFY_SERVER not configured in .env for ntfy notification.")
             return
         try:
             requests.post(ntfy_server, data=message.encode('utf-8'))
@@ -31,9 +40,9 @@ class Notifier:
             print(f"Error sending ntfy notification: {e}")
 
     def _send_email(self, message: str, **kwargs):
-        target_phone_number = kwargs.get('target_phone_number')
-        if not target_phone_number:
-            print("Error: Target phone number not provided for email notification.")
+        target_phone_numbers = kwargs.get('target_phone_numbers')
+        if not target_phone_numbers:
+            print("Error: Target phone numbers not provided for email notification.")
             return
 
         email_host = os.getenv("EMAIL_HOST")
@@ -45,16 +54,19 @@ class Notifier:
             print("Error: Email credentials not fully configured in .env")
             return
 
-        msg = EmailMessage()
-        msg.set_content(message)
-        msg['From'] = email_user
-        msg['To'] = target_phone_number
-
         try:
             with smtplib.SMTP(email_host, email_port) as server:
                 server.starttls()
                 server.login(email_user, email_password)
-                server.send_message(msg)
-                print("Email notification sent.")
+                for recipient in target_phone_numbers:
+                    recipient = recipient.strip()
+                    if not recipient:
+                        continue
+                    msg = EmailMessage()
+                    msg.set_content(message)
+                    msg['From'] = email_user
+                    msg['To'] = recipient
+                    server.send_message(msg)
+                    print(f"Email notification sent to {recipient}.")
         except smtplib.SMTPException as e:
             print(f"Error sending email: {e}")

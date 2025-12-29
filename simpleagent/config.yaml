@@ -1,11 +1,10 @@
 # config.yaml - Application Configuration
 default_model: 'gemma3:12b'
-notification_preference: 'ntfy' # or 'email'
+notification_preference: ['email', 'ntfy'] # Can be a list: ['ntfy', 'email']
 
 tasks:
   daily_motivation:
     prompt: "Generate a short, uplifting motivational message for today."
-    target_phone_number: "1234567890@txt.att.net" # Example for AT&T
   log_summarizer:
     prompt: "Summarize the key events and errors from the following logs:"
     log_file_path: "/path/to/your/logs.log"
