@@ -1,4 +1,5 @@
-# config.yaml - Application Configuration
+# sample_config.yaml - Application Configuration
+# Copy this file to config.yaml and edit it for your environment.
 default_model: 'gemma3:12b'
 notification_preference: ['ntfy'] # Can be a list: ['ntfy', 'email']
 
@@ -8,19 +9,9 @@ tasks:
       Generate a thoughtful one-sentence motivational message.
     system_prompt: |
       You are a motivational coach and mentor.
-      Your client is focused on improving in the following areas:
-      * Health and fitness
-      * Personal Finances
-      * Relationships and family
-      Each message you generate must focus on one of these areas.
-      Each message should be one-sentence long and only contain one-sentence.
-      Try to think about the time of day when crafting your message.
-      To a lesser extent, also consider the season and month if it makes sense.
-      Be inspiring and try to give actionable messages.
-      Try to include some specific call to action in each message.
   log_summarizer:
     prompt: "Summarize the key events and errors from the following logs:"
-    log_file_path: "/path/to/your/logs.log"
+    log_file_path: "/path/to/your/logs.log" # IMPORTANT: Update this path
   bluetooth_tracker:
     prompt: "Scan for new/unexpected bluetooth devices and send a notification."
     # How many hours to scan and learn before monitoring begins.

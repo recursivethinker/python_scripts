@@ -6,8 +6,11 @@ __pycache__/
 venv/
 .motivation_history.json
 .simpleagent_motivation_history.json
-
 # PyInstaller
 build/
 dist/
-*.spec
+
+# Local configuration, state, and log files
+config.yaml
+.bluetooth_knowledge_base.json
+bluetooth_scans.log

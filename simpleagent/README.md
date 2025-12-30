@@ -50,11 +50,15 @@ This method is ideal for development and testing.
 
 5.  **Run the application:**
     ```bash
-    python3 main.py <task_name>
+    python3 main.py <task_name> [options]
     ```
     For example:
     ```bash
     python3 main.py daily_motivation
+    ```
+    You can also specify a path to a configuration file using the `--config` flag. This is useful for managing multiple configurations.
+    ```bash
+    python3 main.py log_summarizer --config /path/to/another_config.yaml
     ```
 
 ---
@@ -70,7 +74,7 @@ To create a portable executable that can run on other Linux machines (even those
 ### Build Process
 
 1.  **Modify the Spec File (Optional):**
-    The `simpleagent.spec` file controls the build. By default, it is configured to *exclude* the `.env` and `config.yaml` files from the final binary. This is the recommended approach for a clean deployment, as it forces configuration to be provided externally on the target machine.
+    The `simpleagent.spec` file controls the build. By default, it is configured to bundle `sample_config.yaml` as a fallback `config.yaml` inside the executable. The application is designed to prioritize external `.env` and `config.yaml` files placed next to the executable, allowing you to override the bundled defaults easily.
 
 2.  **Build the Docker Image:**
     From the project's root directory, build the builder image:
@@ -103,7 +107,7 @@ Once built, you can deploy `simpleagent` as a system-wide command.
     ```bash
     cd ~/.local/share/simpleagent
     ```
-    Here, create your production `.env` and `config.yaml` files. The application will look for them in the same directory as the executable.
+    Here, create your production `.env` and `config.yaml` files. The application will automatically look for them in the same directory as the executable.
 
 3.  **Create a Symlink:**
     To make the application callable from anywhere, create a symbolic link in `~/bin/`.
@@ -118,7 +122,11 @@ Once built, you can deploy `simpleagent` as a system-wide command.
 5.  **Run Your Command:**
     You can now run the application from any directory.
     ```bash
-    simpleagent daily_motivation
+    simpleagent daily_motivation 
+    ```
+    You can also use the `--config` flag with the deployed binary to point to a configuration file anywhere on your system.
+    ```bash
+    simpleagent log_summarizer --config ~/.config/simpleagent/prod_config.yaml
     ```
 
 ---
