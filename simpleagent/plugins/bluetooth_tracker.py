@@ -58,7 +58,7 @@ def save_knowledge_base(kb_file, data):
 
 def log_scan_results(log_file, devices):
     """Logs all found devices to a file in a human-readable format."""
-    timestamp = datetime.now().isoformat()
+    timestamp = datetime.now().astimezone().isoformat()
     try:
         with open(log_file, 'a') as f:
             f.write(f"--- Scan at {timestamp} ---\n")
@@ -85,7 +85,7 @@ def initialize_knowledge_base():
     print("No existing knowledge base found. Starting in learning mode.")
     return {
         "plugin_mode": "learning",
-        "learning_start_time": datetime.now(timezone.utc).isoformat(),
+        "learning_start_time": datetime.now().astimezone().isoformat(),
         "total_scans_in_learning_phase": 0,
         "devices": {}
     }
@@ -120,7 +120,7 @@ async def run(config: dict):
     log_scan_results(log_file, found_devices)
 
     # --- Update knowledge base with current scan ---
-    now = datetime.now(timezone.utc)
+    now = datetime.now().astimezone()
     now_iso = now.isoformat()
 
     for address, device_data in found_devices.items():
