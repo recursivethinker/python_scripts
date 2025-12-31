@@ -5,17 +5,35 @@ from datetime import datetime, timedelta, timezone
 import os
 from modules.notifier import Notifier
 
+def create_fingerprint(device_data: dict) -> str:
+    """
+    Creates a stable fingerprint from device advertisement data to identify a device
+    even if its MAC address changes. It's based on manufacturer data and advertised services.
+    """
+    # Manufacturer IDs are a strong signal of device type
+    mfr_ids = sorted(list(device_data.get("manufacturer_data", {}).keys()))
+
+    # Service UUIDs also help define the device's capabilities
+    uuids = sorted(device_data.get("service_uuids", []))
+
+    # The combination of these, sorted to ensure consistency, forms the fingerprint.
+    fingerprint_tuple = (tuple(mfr_ids), tuple(uuids))
+
+    # We use the string representation of the tuple as a dictionary key.
+    return str(fingerprint_tuple)
+
 async def scan_devices():
     """Scans for Bluetooth devices and returns a dictionary of them."""
     devices = await BleakScanner.discover(return_adv=True)
     found_devices = {}
     for d, adv in devices.values():
         name = d.name if d.name else "Unknown Device"
-        address = d.address
-        found_devices[address] = {
+        found_devices[d.address] = {
             "name": name,
-            "address": address,
-            "manufacturer_data": list(adv.manufacturer_data.keys()) if adv.manufacturer_data else [],
+            "address": d.address,
+            "rssi": adv.rssi,
+            "manufacturer_data": {comp_id: data.hex() for comp_id, data in adv.manufacturer_data.items()} if adv.manufacturer_data else {},
+            "service_data": {uuid: data.hex() for uuid, data in adv.service_data.items()} if adv.service_data else {},
             "service_uuids": adv.service_uuids if adv.service_uuids else [],
         }
     return found_devices
@@ -48,15 +66,16 @@ def log_scan_results(log_file, devices):
                 f.write("No devices found.\n\n")
                 return
 
-            f.write(f"{'Name':<30} | {'Address':<20} | {'Details'}\n")
-            f.write("-" * 80 + "\n")
+            f.write(f"{'Name':<30} | {'Address':<20} | {'RSSI':>5} | {'Fingerprint Components'}\n")
+            f.write("-" * 120 + "\n")
 
             for device in devices.values():
                 name = device['name']
                 address = device['address']
-                mfr_data = f"Mfr IDs: {device['manufacturer_data']}"
-                services = f"Services: {device['service_uuids']}"
-                f.write(f"{name[:30]:<30} | {address:<20} | {mfr_data}, {services}\n")
+                rssi = device['rssi']
+                mfr_ids = sorted(list(device.get("manufacturer_data", {}).keys()))
+                uuids = sorted(device.get("service_uuids", []))
+                f.write(f"{name[:30]:<30} | {address:<20} | {rssi:>5} | Mfr IDs: {mfr_ids}, UUIDs: {uuids}\n")
             f.write("\n")
     except IOError as e:
         print(f"Error writing to scan log: {e}")
@@ -101,29 +120,44 @@ async def run(config: dict):
     log_scan_results(log_file, found_devices)
 
     # --- Update knowledge base with current scan ---
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+
     for address, device_data in found_devices.items():
-        if address not in kb['devices']:
-            kb['devices'][address] = {
+        fingerprint = create_fingerprint(device_data)
+
+        if fingerprint not in kb['devices']:
+            # This is a new fingerprint
+            kb['devices'][fingerprint] = {
                 "name": device_data['name'],
+                "addresses": {address: now_iso},
                 "seen_count": 0,
                 "first_seen": now_iso,
-                "is_regular": False
+                "is_regular": False,
+                "last_rssi": device_data['rssi'],
+                "fingerprint_data": {
+                    "manufacturer_data_keys": sorted(list(device_data.get("manufacturer_data", {}).keys())),
+                    "service_uuids": sorted(device_data.get("service_uuids", []))
+                }
             }
-        # Update name if it was previously "Unknown"
-        if kb['devices'][address]['name'] == "Unknown Device" and device_data['name'] != "Unknown Device":
-            kb['devices'][address]['name'] = device_data['name']
-        kb['devices'][address]['seen_count'] += 1
-        kb['devices'][address]['last_seen'] = now_iso
+
+        kb_device = kb['devices'][fingerprint]
+        # Update name if it was "Unknown" and we found a better one
+        if kb_device['name'] == "Unknown Device" and device_data['name'] != "Unknown Device":
+            kb_device['name'] = device_data['name']
+
+        kb_device['seen_count'] += 1
+        kb_device['last_seen'] = now_iso
+        kb_device['addresses'][address] = now_iso # Add or update address
+        kb_device['last_rssi'] = device_data['rssi']
 
     # --- Main Logic: Learning vs. Monitoring ---
     if kb['plugin_mode'] == 'learning':
         kb['total_scans_in_learning_phase'] += 1
-        
         start_time = datetime.fromisoformat(kb['learning_start_time'])
         learning_duration = timedelta(hours=learning_hours)
 
-        if datetime.now(timezone.utc) >= start_time + learning_duration:
+        if now >= start_time + learning_duration:
             print("Learning phase complete. Calculating baseline of regular devices...")
             total_scans = kb['total_scans_in_learning_phase']
             regular_device_count = 0
@@ -140,22 +174,29 @@ async def run(config: dict):
             print(msg)
             notifier.send(msg)
         else:
-            elapsed = datetime.now(timezone.utc) - start_time
+            elapsed = now - start_time
             print(f"In learning mode. Scan {kb['total_scans_in_learning_phase']}. Time elapsed: {str(elapsed).split('.')[0]}/{learning_duration}")
 
     elif kb['plugin_mode'] == 'monitoring':
         print("In monitoring mode. Checking for unexpected devices...")
+        reported_fingerprints = set()
+
         for address, device_data in found_devices.items():
-            if address in ignore_list:
+            if address in ignore_list or device_data['name'] in ignore_list:
                 continue
 
-            is_known_regular = kb['devices'].get(address, {}).get('is_regular', False)
+            fingerprint = create_fingerprint(device_data)
+            if fingerprint in reported_fingerprints:
+                continue
+
+            is_known_regular = kb['devices'].get(fingerprint, {}).get('is_regular', False)
 
             if not is_known_regular:
-                device_name = device_data.get('name', 'Unknown Device')
-                msg = f"Unexpected device detected: '{device_name}' ({address})."
+                known_name = kb['devices'].get(fingerprint, {}).get('name', device_data.get('name', 'Unknown Device'))
+                msg = f"Unexpected device detected: '{known_name}' (current address: {address})."
                 print(f"NOTIFICATION: {msg}")
                 notifier.send(msg)
+                reported_fingerprints.add(fingerprint)
 
     # Save the updated knowledge base
     save_knowledge_base(kb_file, kb)
